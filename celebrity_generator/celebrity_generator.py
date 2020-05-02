@@ -107,7 +107,7 @@ class Discriminator(nn.Module):
 
         return x
 
-    def train(self, real_images, generator_network, discriminator_optimiser):
+    def train_discriminator(self, real_images, generator_network, discriminator_optimiser):
         self.zero_grad()
 
         if torch.cuda.is_available():
@@ -200,7 +200,7 @@ class Generator(nn.Module):
 
         return self.forward(net_input)
 
-    def train(self, real_images, discriminator_network, generator_optimiser):
+    def train_generator(self, real_images, discriminator_network, generator_optimiser):
         self.zero_grad()
 
         if torch.cuda.is_available():

@@ -71,14 +71,14 @@ class CelebrityGeneratorTest(TestCase):
         g_optimizer = optim.Adam(params=G.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
         parameters_before_training = copy.deepcopy(D.state_dict())
-        d_loss = D.train(real_images=real_images, generator_network=G, discriminator_optimiser=d_optimizer)
+        d_loss = D.train_discriminator(real_images=real_images, generator_network=G, discriminator_optimiser=d_optimizer)
         self.assertIsInstance(d_loss.item(), float)
 
         parameters_after_training = copy.deepcopy(D.state_dict())
         self.assertFalse(
             compare_model_parameters(parameters_before_training, parameters_after_training))
 
-        g_loss = G.train(real_images=real_images, discriminator_network=D, generator_optimiser=g_optimizer)
+        g_loss = G.train_generator(real_images=real_images, discriminator_network=D, generator_optimiser=g_optimizer)
         self.assertIsInstance(g_loss.item(), float)
 
 
