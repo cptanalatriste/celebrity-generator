@@ -30,6 +30,8 @@ def initialise_weights(submodule, mean, std_dev):
 def loss_against_real_labels(discriminator_output):
     num_images = discriminator_output.size(0)
     real_labels = torch.ones(num_images)
+    if torch.cuda.is_available():
+        real_labels = real_labels.cuda()
 
     criterion = nn.BCEWithLogitsLoss()
 
@@ -38,11 +40,13 @@ def loss_against_real_labels(discriminator_output):
 
 def loss_against_fake_labels(discriminator_output):
     num_images = discriminator_output.size(0)
-    real_labels = torch.zeros(num_images)
+    fake_labels = torch.zeros(num_images)
+    if torch.cuda.is_available():
+        fake_labels = fake_labels.cuda()
 
     criterion = nn.BCEWithLogitsLoss()
 
-    return criterion(discriminator_output.squeeze(), real_labels)
+    return criterion(discriminator_output.squeeze(), fake_labels)
 
 
 class Discriminator(nn.Module):
@@ -105,6 +109,9 @@ class Discriminator(nn.Module):
 
     def train(self, real_images, generator_network, discriminator_optimiser):
         self.zero_grad()
+
+        if torch.cuda.is_available():
+            real_images = real_images.cuda()
 
         output_from_real = self.forward(real_images)
         loss_from_real = loss_against_real_labels(discriminator_output=output_from_real)
@@ -188,10 +195,16 @@ class Generator(nn.Module):
         latent_vector = np.random.uniform(-1, 1, size=(batch_size, self.input_layer_input))
         net_input = torch.from_numpy(latent_vector).float()
 
+        if torch.cuda.is_available():
+            net_input = net_input.cuda()
+
         return self.forward(net_input)
 
     def train(self, real_images, discriminator_network, generator_optimiser):
         self.zero_grad()
+
+        if torch.cuda.is_available():
+            real_images = real_images.cuda()
 
         fake_images = self.generate_images(batch_size=real_images.size()[0])
         output_from_fake = discriminator_network.forward(fake_images)
