@@ -71,3 +71,64 @@ class Discriminator(nn.Module):
         x = self.final_linear_layer(x)
 
         return x
+
+
+class Generator(nn.Module):
+
+    def __init__(self, z_size, conv_dim, final_output_channels=3):
+        """
+        Initialize the Generator Module
+        :param z_size: The length of the input latent vector, z
+        :param conv_dim: The depth of the inputs to the *last* transpose convolutional layer
+        """
+        super(Generator, self).__init__()
+
+        # complete init function
+
+        self.first_transconv_input = 128
+        self.init_image_size = 4
+        first_transconv_output = int(self.first_transconv_input / 2)
+
+        self.input_layer = nn.Linear(in_features=z_size,
+                                     out_features=self.first_transconv_input * self.init_image_size * self.init_image_size)
+
+        self.first_transcov_layer = nn.Sequential(nn.ConvTranspose2d(in_channels=self.first_transconv_input,
+                                                                     out_channels=first_transconv_output,
+                                                                     kernel_size=4,
+                                                                     stride=2,
+                                                                     padding=1),
+                                                  nn.BatchNorm2d(num_features=first_transconv_output),
+                                                  nn.ReLU())
+
+        second_transconv_output = conv_dim
+        self.sec_transcov_layer = nn.Sequential(nn.ConvTranspose2d(in_channels=first_transconv_output,
+                                                                   out_channels=second_transconv_output,
+                                                                   kernel_size=4,
+                                                                   stride=2,
+                                                                   padding=1),
+                                                nn.BatchNorm2d(num_features=second_transconv_output),
+                                                nn.ReLU())
+
+        self.final_transcov_layer = nn.Sequential(nn.ConvTranspose2d(in_channels=second_transconv_output,
+                                                                     out_channels=final_output_channels,
+                                                                     kernel_size=4,
+                                                                     stride=2,
+                                                                     padding=1),
+                                                  nn.Tanh())
+
+    def forward(self, x):
+        """
+        Forward propagation of the neural network
+        :param x: The input to the neural network
+        :return: A 32x32x3 Tensor image as output
+        """
+        # define feedforward behavior
+
+        x = self.input_layer(x)
+        x = x.view(-1, self.first_transconv_input, self.init_image_size, self.init_image_size)
+
+        x = self.first_transcov_layer(x)
+        x = self.sec_transcov_layer(x)
+        x = self.final_transcov_layer(x)
+
+        return x

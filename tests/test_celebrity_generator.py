@@ -1,9 +1,10 @@
 from unittest import TestCase
 
 import torch
+import numpy as np
 
-from celebrity_generator import create_image_dataloader, scale_tensor, Discriminator
-from problem_unittests import test_discriminator
+from celebrity_generator import create_image_dataloader, scale_tensor, Discriminator, Generator
+from problem_unittests import test_discriminator, test_generator
 
 
 class CelebrityGeneratorTest(TestCase):
@@ -44,3 +45,23 @@ class TestDiscriminator(TestCase):
 
     def test_structure(self):
         test_discriminator(Discriminator)
+
+
+class TestGenerator(TestCase):
+    def test_forward(self):
+        latent_vector_size = 100
+        generator_network = Generator(z_size=latent_vector_size, conv_dim=32)
+
+        print(generator_network)
+
+        sample_size = 16
+        fixed_z = np.random.uniform(-1, 1, size=(sample_size, latent_vector_size))
+        sample_input = torch.from_numpy(fixed_z).float()
+
+        output = generator_network.forward(sample_input)
+        output = output.detach()
+
+        self.assertEqual((sample_size, 3, 32, 32), output.size())
+
+    def test_structure(self):
+        test_generator(Generator)
