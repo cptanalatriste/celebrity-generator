@@ -1,3 +1,5 @@
+import torch
+import numpy as np
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
@@ -17,6 +19,32 @@ def scale_tensor(input_tensor, new_scale):
     return input_tensor
 
 
+def initialise_weights(submodule, mean, std_dev):
+    if isinstance(submodule, (nn.Conv2d, nn.Linear, nn.ConvTranspose2d)):
+        nn.init.normal_(submodule.weight.data, mean, std_dev)
+
+        if hasattr(submodule, 'bias') and submodule.bias is not None:
+            nn.init.constant_(submodule.bias.data, 0.0)
+
+
+def loss_against_real_labels(discriminator_output):
+    num_images = discriminator_output.size(0)
+    real_labels = torch.ones(num_images)
+
+    criterion = nn.BCEWithLogitsLoss()
+
+    return criterion(discriminator_output.squeeze(), real_labels)
+
+
+def loss_against_fake_labels(discriminator_output):
+    num_images = discriminator_output.size(0)
+    real_labels = torch.zeros(num_images)
+
+    criterion = nn.BCEWithLogitsLoss()
+
+    return criterion(discriminator_output.squeeze(), real_labels)
+
+
 class Discriminator(nn.Module):
 
     def __init__(self, conv_dim, in_channels=3, negative_slope=0.2):
@@ -31,7 +59,8 @@ class Discriminator(nn.Module):
                                                         out_channels=conv_dim,
                                                         kernel_size=4,
                                                         stride=2,
-                                                        padding=1),
+                                                        padding=1,
+                                                        bias=False),
                                               nn.LeakyReLU(negative_slope=negative_slope))
 
         sec_conv_output = conv_dim * 2
@@ -39,7 +68,8 @@ class Discriminator(nn.Module):
                                                       out_channels=sec_conv_output,
                                                       kernel_size=4,
                                                       stride=2,
-                                                      padding=1),
+                                                      padding=1,
+                                                      bias=False),
                                             nn.BatchNorm2d(num_features=sec_conv_output),
                                             nn.LeakyReLU(negative_slope=negative_slope))
 
@@ -48,7 +78,8 @@ class Discriminator(nn.Module):
                                                         out_channels=third_conv_output,
                                                         kernel_size=4,
                                                         stride=2,
-                                                        padding=1),
+                                                        padding=1,
+                                                        bias=False),
                                               nn.BatchNorm2d(num_features=third_conv_output),
                                               nn.LeakyReLU(negative_slope=negative_slope))
 
@@ -72,6 +103,22 @@ class Discriminator(nn.Module):
 
         return x
 
+    def train(self, real_images, generator_network, discriminator_optimiser):
+        self.zero_grad()
+
+        output_from_real = self.forward(real_images)
+        loss_from_real = loss_against_real_labels(discriminator_output=output_from_real)
+
+        fake_images = generator_network.generate_images(batch_size=real_images.size()[0])
+        output_from_fake = self.forward(fake_images)
+        loss_from_fake = loss_against_fake_labels(discriminator_output=output_from_fake)
+
+        discriminator_loss = loss_from_real + loss_from_fake
+        discriminator_loss.backward()
+        discriminator_optimiser.step()
+
+        return discriminator_loss
+
 
 class Generator(nn.Module):
 
@@ -85,6 +132,7 @@ class Generator(nn.Module):
 
         # complete init function
 
+        self.input_layer_input = z_size
         self.first_transconv_input = 128
         self.init_image_size = 4
         first_transconv_output = int(self.first_transconv_input / 2)
@@ -96,7 +144,8 @@ class Generator(nn.Module):
                                                                      out_channels=first_transconv_output,
                                                                      kernel_size=4,
                                                                      stride=2,
-                                                                     padding=1),
+                                                                     padding=1,
+                                                                     bias=False),
                                                   nn.BatchNorm2d(num_features=first_transconv_output),
                                                   nn.ReLU())
 
@@ -105,7 +154,8 @@ class Generator(nn.Module):
                                                                    out_channels=second_transconv_output,
                                                                    kernel_size=4,
                                                                    stride=2,
-                                                                   padding=1),
+                                                                   padding=1,
+                                                                   bias=False),
                                                 nn.BatchNorm2d(num_features=second_transconv_output),
                                                 nn.ReLU())
 
@@ -113,7 +163,8 @@ class Generator(nn.Module):
                                                                      out_channels=final_output_channels,
                                                                      kernel_size=4,
                                                                      stride=2,
-                                                                     padding=1),
+                                                                     padding=1,
+                                                                     bias=False),
                                                   nn.Tanh())
 
     def forward(self, x):
@@ -132,3 +183,21 @@ class Generator(nn.Module):
         x = self.final_transcov_layer(x)
 
         return x
+
+    def generate_images(self, batch_size):
+        latent_vector = np.random.uniform(-1, 1, size=(batch_size, self.input_layer_input))
+        net_input = torch.from_numpy(latent_vector).float()
+
+        return self.forward(net_input)
+
+    def train(self, real_images, discriminator_network, generator_optimiser):
+        self.zero_grad()
+
+        fake_images = self.generate_images(batch_size=real_images.size()[0])
+        output_from_fake = discriminator_network.forward(fake_images)
+        loss_from_fake = loss_against_real_labels(discriminator_output=output_from_fake)
+
+        loss_from_fake.backward()
+        generator_optimiser.step()
+
+        return loss_from_fake
